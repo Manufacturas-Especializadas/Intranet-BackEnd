@@ -25,6 +25,10 @@ public partial class Users
 
     public DateTime? RefreshTokenExpiryTime { get; set; }
 
+    public string WorkPosition { get; set; } = null!;
+
+    public string OfficeLocation { get; set; } = null!;
+
     public virtual Departments? IdDepartmentNavigation { get; set; }
 
     public virtual Roles? IdRoleNavigation { get; set; }

@@ -53,6 +53,10 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(70)
                 .IsUnicode(false)
                 .HasColumnName("name");
+            entity.Property(e => e.OfficeLocation)
+                .HasMaxLength(90)
+                .IsUnicode(false)
+                .HasColumnName("officeLocation");
             entity.Property(e => e.PasswordHash)
                 .IsRequired()
                 .HasMaxLength(256)
@@ -63,6 +67,10 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("refreshToken");
             entity.Property(e => e.RefreshTokenExpiryTime).HasColumnName("refreshTokenExpiryTime");
             entity.Property(e => e.TelephoneExtension).HasColumnName("telephoneExtension");
+            entity.Property(e => e.WorkPosition)
+                .HasMaxLength(70)
+                .IsUnicode(false)
+                .HasColumnName("workPosition");
 
             entity.HasOne(d => d.IdDepartmentNavigation).WithMany(p => p.Users)
                 .HasForeignKey(d => d.IdDepartment)
