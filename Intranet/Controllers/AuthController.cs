@@ -48,6 +48,20 @@ namespace Intranet.Controllers
             return Ok(departments);
         }
 
+        [HttpGet]
+        [Route("GetUserById/{id:int}")]
+        public async Task<IActionResult> GetUserById(int id)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+
+            if(user == null)
+            {
+                return NotFound("Usuario no encontrado");
+            }
+
+            return Ok(user);
+        }
+
         [HttpPost]
         [Route("Logout")]
         public async Task<IActionResult> Logout()
@@ -102,7 +116,7 @@ namespace Intranet.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
-        }
+        }        
 
         [HttpPost]
         [Route("Refresh")]
