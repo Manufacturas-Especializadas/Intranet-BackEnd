@@ -23,6 +23,8 @@ public partial class Users
 
     public DateTime? RefreshTokenExpiryTime { get; set; }
 
+    public virtual ICollection<FeaturedCollaborators> FeaturedCollaborators { get; set; } = new List<FeaturedCollaborators>();
+
     public virtual Departments? IdDepartmentNavigation { get; set; }
 
     public virtual Roles? IdRoleNavigation { get; set; }
