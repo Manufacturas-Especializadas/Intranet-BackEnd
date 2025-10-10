@@ -13,6 +13,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Departments> Departments { get; set; }
 
+    public virtual DbSet<InternalNews> InternalNews { get; set; }
+
     public virtual DbSet<Roles> Roles { get; set; }
 
     public virtual DbSet<Users> Users { get; set; }
@@ -27,6 +29,32 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false)
                 .HasColumnName("name");
+        });
+
+        modelBuilder.Entity<InternalNews>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__Internal__3214EC0757AB214B");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("createdAt");
+            entity.Property(e => e.Description)
+                .HasMaxLength(200)
+                .IsUnicode(false)
+                .HasColumnName("description");
+            entity.Property(e => e.Img)
+                .HasMaxLength(200)
+                .IsUnicode(false)
+                .HasColumnName("img");
+            entity.Property(e => e.Title)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("title");
+
+            entity.HasOne(d => d.IdUserNavigation).WithMany(p => p.InternalNews)
+                .HasForeignKey(d => d.IdUser)
+                .HasConstraintName("FK__InternalN__IdUse__5441852A");
         });
 
         modelBuilder.Entity<Roles>(entity =>
