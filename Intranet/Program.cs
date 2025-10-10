@@ -45,6 +45,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AzureStorageService>();
 
 var connection = builder.Configuration.GetConnectionString("Connection");
 builder.Services.AddDbContext<AppDbContext>(options =>
