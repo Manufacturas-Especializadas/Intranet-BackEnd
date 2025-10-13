@@ -13,6 +13,8 @@ public partial class AppDbContext : DbContext
     {
     }
 
+    public virtual DbSet<BlogContent> BlogContent { get; set; }
+
     public virtual DbSet<Departments> Departments { get; set; }
 
     public virtual DbSet<FeaturedCollaborators> FeaturedCollaborators { get; set; }
@@ -25,6 +27,42 @@ public partial class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<BlogContent>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__BlogCont__3214EC070E677018");
+
+            entity.Property(e => e.Content).HasColumnName("content");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("createdAt");
+            entity.Property(e => e.Description)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasColumnName("description");
+            entity.Property(e => e.Img)
+                .HasMaxLength(300)
+                .IsUnicode(false)
+                .HasColumnName("img");
+            entity.Property(e => e.SubTitle)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("subTitle");
+            entity.Property(e => e.Template)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("template");
+            entity.Property(e => e.Title)
+                .HasMaxLength(70)
+                .IsUnicode(false)
+                .HasColumnName("title");
+
+            entity.HasOne(d => d.IdUserNavigation).WithMany(p => p.BlogContent)
+                .HasForeignKey(d => d.IdUser)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__BlogConte__IdUse__70DDC3D8");
+        });
+
         modelBuilder.Entity<Departments>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Departme__3214EC07D5C314A8");
