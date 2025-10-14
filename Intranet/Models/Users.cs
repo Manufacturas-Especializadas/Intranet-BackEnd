@@ -7,7 +7,7 @@ public partial class Users
 {
     public int Id { get; set; }
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public int? IdDepartment { get; set; }
 
@@ -17,15 +17,15 @@ public partial class Users
 
     public int? PayRollNumber { get; set; }
 
-    public string PasswordHash { get; set; } = null!;
+    public string? PasswordHash { get; set; } = null!;
 
-    public string RefreshToken { get; set; } = null!;
+    public string? RefreshToken { get; set; } = null!;
 
     public DateTime? RefreshTokenExpiryTime { get; set; }
 
-    public virtual ICollection<BlogContent> BlogContent { get; set; } = new List<BlogContent>();
+    public virtual ICollection<BlogContent?> BlogContent { get; set; } = new List<BlogContent?>();
 
-    public virtual ICollection<FeaturedCollaborators> FeaturedCollaborators { get; set; } = new List<FeaturedCollaborators>();
+    public virtual ICollection<FeaturedCollaborators?> FeaturedCollaborators { get; set; } = new List<FeaturedCollaborators?>();
 
     public virtual Departments? IdDepartmentNavigation { get; set; }
 
