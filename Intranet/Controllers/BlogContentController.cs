@@ -39,10 +39,16 @@ namespace Intranet.Controllers
 
         [HttpGet]
         [Route("GetBlogContent")]
-        public async Task<IActionResult> GetBlogContent()
+        public async Task<IActionResult> GetBlogContent([FromQuery] string pageType)
         {
+            if (string.IsNullOrWhiteSpace(pageType))
+            {
+                return BadRequest("El parámetro es requerido");
+            }
+
             var content = await _context.BlogContent
                             .AsNoTracking()
+                            .Where(b => b.PageType == pageType)
                             .ToListAsync();
 
             if(content == null)
@@ -96,6 +102,7 @@ namespace Intranet.Controllers
                 Description = blogContentDto.Description,
                 Content = blogContentDto.Content,
                 Template = blogContentDto.Template,
+                PageType = blogContentDto.PageType,
                 Img = imageUrl,
                 IdUser = userId
             };
