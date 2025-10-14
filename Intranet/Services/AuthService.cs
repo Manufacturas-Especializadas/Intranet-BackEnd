@@ -123,7 +123,7 @@ namespace Intranet.Services
                 AccessToken = accessToken,
                 RefreshToken = newRefreshToken,
                 AccessTokenExpiration = DateTime.UtcNow.AddMinutes(
-                    _configuration.GetValue<int>("Jwt:RefreshTokenExpirationDays", 60)
+                    _configuration.GetValue<int>("Jwt:AccessTokenExpirationMinutes", 60)
                 )
             };
         }
