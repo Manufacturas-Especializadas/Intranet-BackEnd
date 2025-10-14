@@ -12,6 +12,8 @@
 
         public string Template { get; set; }
 
+        public string PageType { get; set; }
+
         public IFormFile Img { get; set; }
 
     }

@@ -23,5 +23,7 @@ public partial class BlogContent
 
     public DateTime? CreatedAt { get; set; }
 
+    public string PageType { get; set; }
+
     public virtual Users? IdUserNavigation { get; set; }
 }
