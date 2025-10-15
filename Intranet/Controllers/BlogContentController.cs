@@ -64,30 +64,36 @@ namespace Intranet.Controllers
         [Route("Register")]
         public async Task<IActionResult> Register([FromForm] BlogContentDto blogContentDto)
         {
-            if(blogContentDto == null)
+            if (blogContentDto == null)
             {
-                return BadRequest("Campos vacios");
+                return BadRequest("Campos vacíos");
             }
 
             var userClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userClaim == null || !int.TryParse(userClaim.Value, out int userId))
             {
-                return Unauthorized(new { message = "Usuario no autenticas" });
+                return Unauthorized(new { message = "Usuario no autenticado" });
             }
 
             var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
             if (!userExists)
             {
-                return Unauthorized(new { message = "Usuario no valido" });
+                return Unauthorized(new { message = "Usuario no válido" });
             }
 
-            string imageUrl = null!;
+            string fileUrl = null!;
 
             if (blogContentDto.Img != null && blogContentDto.Img.Length > 0)
             {
+                var allowedExtensions = new[]
+                {
+                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
+                    ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
+                };
+
                 try
                 {
-                    imageUrl = await _azureStorageService.StoragePhotos(_container, blogContentDto.Img);
+                    fileUrl = await _azureStorageService.UploadFile(_container, blogContentDto.Img, allowedExtensions);
                 }
                 catch (Exception ex)
                 {
@@ -103,7 +109,7 @@ namespace Intranet.Controllers
                 Content = blogContentDto.Content,
                 Template = blogContentDto.Template,
                 PageType = blogContentDto.PageType,
-                Img = imageUrl,
+                Img = fileUrl!,
                 IdUser = userId
             };
 
