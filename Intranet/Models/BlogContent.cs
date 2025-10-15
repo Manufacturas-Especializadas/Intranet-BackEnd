@@ -17,7 +17,7 @@ public partial class BlogContent
 
     public string Template { get; set; }
 
-    public string Img { get; set; } = null!;
+    public string? Img { get; set; } = null!;
 
     public int? IdUser { get; set; }
 
