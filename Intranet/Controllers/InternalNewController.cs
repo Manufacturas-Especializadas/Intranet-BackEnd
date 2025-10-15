@@ -98,9 +98,15 @@ namespace Intranet.Controllers
 
             if(dto.Img != null && dto.Img.Length > 0)
             {
+                var allowedExtensions = new[]
+                {
+                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
+                    ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
+                };
+
                 try
                 {
-                    imageUrl = await _azureStorageService.StoragePhotos(_contenedor, dto.Img);
+                    imageUrl = await _azureStorageService.UploadFile(_contenedor, dto.Img, allowedExtensions);
                 }
                 catch(Exception ex)
                 {
