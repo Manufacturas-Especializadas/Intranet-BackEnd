@@ -12,51 +12,57 @@ namespace Intranet.Services
             _connectionString = configuration.GetConnectionString("AzureStorageConnection")!;
         }
 
-        public async Task<string> StoragePhotos(string container, IFormFile photo)
+        public async Task<string> UploadFile(string container, IFormFile file, string[] allowedExtensions)
         {
-            try
+            if (file == null || file.Length == 0)
             {
-                if(photo == null || photo.Length == 0)
-                {
-                    throw new ApplicationException("El archivo adjunto no puede estar vacio");
-                }
-
-                var extension = Path.GetExtension(photo.FileName).ToLower();
-                var allowedExtension = new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" };
-
-                if(!allowedExtension.Contains(extension))
-                {
-                    throw new ApplicationException("Solo se permiten archivos de imagen (.jpg, .jpeg, .png, .gif, .bmp, .webp)");
-                }
-
-                var client = new BlobContainerClient(_connectionString, container);
-                await client.CreateIfNotExistsAsync();
-
-                var fileName = photo.FileName;
-                var blob = client.GetBlobClient(fileName);
-
-                var contentType = extension switch
-                {
-                    ".jpg" or ".jpeg" => "image/jpeg",
-                    ".png" => "image/png",
-                    ".gif" => "image/gif",
-                    ".bmp" => "image/bmp",
-                    _ => "application/octet-stream"
-                };
-
-                var blobHttpHeaders = new BlobHttpHeaders
-                {
-                    ContentType = contentType,
-                };
-
-                await blob.UploadAsync(photo.OpenReadStream(), blobHttpHeaders);
-
-                return blob.Uri.ToString();
+                throw new ApplicationException("El archivo adjunto no puede estar vacío");
             }
-            catch (Exception ex)
+
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(extension))
             {
-                throw new ApplicationException("Error al guardar el archivo", ex);
+                throw new ApplicationException($"Tipo de archivo no permitido. Extensiones permitidas: {string.Join(", ", allowedExtensions)}");
             }
+
+            var client = new BlobContainerClient(_connectionString, container);
+            await client.CreateIfNotExistsAsync();
+
+            var fileName = file.FileName;
+            var blob = client.GetBlobClient(fileName);
+
+            var contentType = GetContentType(extension);
+
+            var blobHttpHeaders = new BlobHttpHeaders
+            {
+                ContentType = contentType,
+            };
+
+            await blob.UploadAsync(file.OpenReadStream(), blobHttpHeaders);
+
+            return blob.Uri.ToString();
+        }
+
+        private static string GetContentType(string extension)
+        {
+            return extension.ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".bmp" => "image/bmp",
+                ".webp" => "image/webp",
+
+                ".mp4" => "video/mp4",
+                ".avi" => "video/x-msvideo",
+                ".mov" => "video/quicktime",
+                ".wmv" => "video/x-ms-wmv",
+                ".flv" => "video/x-flv",
+                ".mkv" => "video/x-matroska",
+                ".webm" => "video/webm",
+
+                _ => "application/octet-stream"
+            };
         }
     }
 }
