@@ -24,20 +24,6 @@ namespace Intranet.Controllers
         }
 
         [HttpGet]
-        [Route("GetBlogContentById/{id:int}")]
-        public async Task<IActionResult> GetBlogContentById(int id)
-        {
-            var IdBlog = await _context.BlogContent.FirstOrDefaultAsync(b => b.Id == id);
-
-            if (IdBlog == null)
-            {
-                return NotFound("Id no encontrado");
-            }
-
-            return Ok(IdBlog);
-        }
-
-        [HttpGet]
         [Route("GetBlogContent")]
         public async Task<IActionResult> GetBlogContent([FromQuery] string pageType)
         {
@@ -57,6 +43,23 @@ namespace Intranet.Controllers
             }
 
             return Ok(content);
+        }
+
+        [HttpGet]
+        [Route("GetBlogContentById/{id}")]
+        public async Task<IActionResult> GetBlogContentById(int id, string pageType)
+        {
+            var IdBlog = await _context.BlogContent
+                                .AsNoTracking()
+                                .Where(b => b.PageType == pageType)
+                                .FirstOrDefaultAsync(b => b.Id == id);
+
+            if(IdBlog == null)
+            {
+                return NotFound("Id no encontrado");
+            }
+
+            return Ok(IdBlog);
         }
 
         [Authorize]
@@ -121,6 +124,77 @@ namespace Intranet.Controllers
                 success = true,
                 message = "Registro creado exitosamente",
                 blogId = newBlogContent.Id
+            });
+        }
+
+        [Authorize]
+        [HttpPut]
+        [Route("Edit/{id}")]
+        public async Task<IActionResult> Edit(int id, [FromForm] BlogContentDto blogContentDto)
+        {
+            if (blogContentDto == null)
+            {
+                return BadRequest("Campos vacíos");
+            }
+
+            var userClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userClaim == null || !int.TryParse(userClaim.Value, out int userId))
+            {
+                return Unauthorized(new { message = "Usuario no autenticado" });
+            }
+
+            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+            if (!userExists)
+            {
+                return Unauthorized(new { message = "Usuario no válido" });
+            }
+
+            var isAdmin = User.IsInRole("Admin");
+
+            var existingBlogContent = await _context.BlogContent
+                .FirstOrDefaultAsync(b => b.Id == id && (b.IdUser == userId || isAdmin));
+
+            if (existingBlogContent == null)
+            {
+                return NotFound(new { message = "Contenido no encontrado o no autorizado para editarlo" });
+            }
+
+            string fileUrl = existingBlogContent.Img;
+
+            if (blogContentDto.Img != null && blogContentDto.Img.Length > 0)
+            {
+                var allowedExtensions = new[]
+                {
+                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
+                    ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
+                };
+
+                try
+                {
+                    fileUrl = await _azureStorageService.UploadFile(_container, blogContentDto.Img, allowedExtensions);
+                }
+                catch (Exception ex)
+                {
+                    return BadRequest(new { message = ex.Message });
+                }
+            }
+
+            existingBlogContent.Title = blogContentDto.Title;
+            existingBlogContent.SubTitle = blogContentDto.SubTitle;
+            existingBlogContent.Description = blogContentDto.Description;
+            existingBlogContent.Content = blogContentDto.Content;
+            existingBlogContent.Template = blogContentDto.Template;
+            existingBlogContent.PageType = blogContentDto.PageType;
+            existingBlogContent.Img = fileUrl!;
+
+            _context.BlogContent.Update(existingBlogContent);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Contenido actualizado exitosamente",
+                blogId = existingBlogContent.Id
             });
         }
 
