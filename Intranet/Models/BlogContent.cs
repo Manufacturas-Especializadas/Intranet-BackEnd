@@ -9,13 +9,13 @@ public partial class BlogContent
 
     public string Title { get; set; }
 
-    public string SubTitle { get; set; } = null!;
+    public string? SubTitle { get; set; } = null!;
 
-    public string Description { get; set; } = null!;
+    public string? Description { get; set; } = null!;
 
-    public string Content { get; set; }
+    public string? Content { get; set; }
 
-    public string Template { get; set; }
+    public string? Template { get; set; }
 
     public string? Img { get; set; } = null!;
 
