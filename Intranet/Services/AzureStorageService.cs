@@ -64,5 +64,29 @@ namespace Intranet.Services
                 _ => "application/octet-stream"
             };
         }
+
+        public async Task DeleteFile(string container, string imageUrl)
+        {
+            if (string.IsNullOrEmpty(imageUrl))
+            {
+                return;
+            }
+
+            try
+            {
+                var client = new BlobContainerClient(_connectionString, container);
+                var blobName = new Uri(imageUrl).Segments.LastOrDefault();
+
+                if (blobName != null)
+                {
+                    var blob = client.GetBlobClient(blobName);
+                    await blob.DeleteIfExistsAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al eliminar blob antiguo: {ex.Message}");
+            }
+        }
     }
 }

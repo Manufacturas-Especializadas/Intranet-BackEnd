@@ -133,5 +133,89 @@ namespace Intranet.Controllers
                 imageUrl = imageUrl,
             });
         }
+
+        [Authorize]
+        [HttpPut]
+        [Route("UpdateInteranlNew/{id}")]
+        public async Task<IActionResult> UpdateInternalNew([FromForm] InternalNewDto dto, int id)
+        {
+            var news = await _context.InternalNews.FindAsync(id);
+            if(news == null)
+            {
+                return NotFound("Noticia no encontrada");
+            }
+
+            var userClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userClaim == null || !int.TryParse(userClaim.Value, out int userId))
+            {
+                return Unauthorized(new { message = "Usuario no autenticado" });
+            }
+
+            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+            if (!userExists)
+            {
+                return Unauthorized(new { message = "Usuario no valido" });
+            }
+
+            string imageUrl = null!;
+
+            if (dto.Img != null && dto.Img.Length > 0)
+            {
+                var allowedExtensions = new[]
+                {
+                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
+                    ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
+                };
+
+                var oldImageUrl = news.Img;
+
+                try
+                {
+                    imageUrl = await _azureStorageService.UploadFile(_contenedor, dto.Img, allowedExtensions);
+                    news.Img = imageUrl;
+
+                    if (!string.IsNullOrEmpty(oldImageUrl))
+                    {
+                        await _azureStorageService.DeleteFile(_contenedor, oldImageUrl);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return BadRequest(new { message = ex.Message });
+                }
+            }
+
+            news.Title = dto.Title;
+            news.Description = dto.Description;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Noticia actualizada"
+            });
+        }
+
+        [HttpDelete]
+        [Route("DeleteInternalNew/{id}")]
+        public async Task<IActionResult> DeleteInternalNew(int id)
+        {
+            var newId = await _context.InternalNews.FindAsync(id);
+
+            if(newId == null)
+            {
+                return NotFound("Noticia no encontrada");
+            }
+
+            _context.InternalNews.Remove(newId);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Noticia eliminada"
+            });
+        }
     }
 }
