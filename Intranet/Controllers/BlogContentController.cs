@@ -34,7 +34,9 @@ namespace Intranet.Controllers
 
             var content = await _context.BlogContent
                             .AsNoTracking()
+                            .Include(b => b.BlogMedia)
                             .Where(b => b.PageType == pageType)
+                            .OrderByDescending(b => b.CreatedAt)
                             .ToListAsync();
 
             if(content == null)
@@ -51,7 +53,9 @@ namespace Intranet.Controllers
         {
             var IdBlog = await _context.BlogContent
                                 .AsNoTracking()
+                                .Include(b => b.BlogMedia)
                                 .Where(b => b.PageType == pageType)
+                                .OrderByDescending(b => b.CreatedAt)
                                 .FirstOrDefaultAsync(b => b.Id == id);
 
             if(IdBlog == null)
@@ -82,42 +86,54 @@ namespace Intranet.Controllers
             if (!userExists)
             {
                 return Unauthorized(new { message = "Usuario no válido" });
-            }
-
-            string fileUrl = null!;
-
-            if (blogContentDto.Img != null && blogContentDto.Img.Length > 0)
-            {
-                var allowedExtensions = new[]
-                {
-                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
-                    ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
-                };
-
-                try
-                {
-                    fileUrl = await _azureStorageService.UploadFile(_container, blogContentDto.Img, allowedExtensions);
-                }
-                catch (Exception ex)
-                {
-                    return BadRequest(new { message = ex.Message });
-                }
-            }
+            }            
 
             var newBlogContent = new BlogContent
             {
                 Title = blogContentDto.Title,
-                SubTitle = blogContentDto.SubTitle,
-                Description = blogContentDto.Description,
                 Content = blogContentDto.Content,
                 Template = blogContentDto.Template,
                 PageType = blogContentDto.PageType,
-                Img = fileUrl!,
-                IdUser = userId
+                IdUser = userId,
             };
 
             _context.BlogContent.Add(newBlogContent);
             await _context.SaveChangesAsync();
+
+            if(blogContentDto.MediaFiles != null && blogContentDto.MediaFiles.Count > 0)
+            {
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".webm" };
+                var mediaList = new List<BlogMedia>();
+
+                foreach(var file in blogContentDto.MediaFiles)
+                {
+                    var ext = Path.GetExtension(file.FileName).ToLower();
+                    if (allowedExtensions.Contains(ext))
+                    {
+                        try
+                        {
+                            string fileUrl = await _azureStorageService.UploadFile(_container, file, allowedExtensions);
+
+                            string type = (ext == ".mp4" || ext == ".mov" || ext == ".webm") ? "video" : "image";
+
+                            var mediaItem = new BlogMedia
+                            {
+                                Url = fileUrl,
+                                MediaType = type,
+                                BlogContentId = newBlogContent.Id
+                            };
+
+                            _context.BlogMedia.Add(mediaItem);
+                        }
+                        catch(Exception ex)
+                        {
+                            Console.WriteLine($"Error subiendo archivo: {ex.Message}");
+                        }
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+            }
 
             return Ok(new
             {
@@ -161,27 +177,25 @@ namespace Intranet.Controllers
 
             string fileUrl = existingBlogContent.Img;
 
-            if (blogContentDto.Img != null && blogContentDto.Img.Length > 0)
-            {
-                var allowedExtensions = new[]
-                {
-                    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
-                    ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
-                };
+            //if (blogContentDto.Img != null && blogContentDto.Img.Length > 0)
+            //{
+            //    var allowedExtensions = new[]
+            //    {
+            //        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
+            //        ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
+            //    };
 
-                try
-                {
-                    fileUrl = await _azureStorageService.UploadFile(_container, blogContentDto.Img, allowedExtensions);
-                }
-                catch (Exception ex)
-                {
-                    return BadRequest(new { message = ex.Message });
-                }
-            }
+            //    try
+            //    {
+            //        fileUrl = await _azureStorageService.UploadFile(_container, blogContentDto.Img, allowedExtensions);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        return BadRequest(new { message = ex.Message });
+            //    }
+            //}
 
             existingBlogContent.Title = blogContentDto.Title;
-            existingBlogContent.SubTitle = blogContentDto.SubTitle;
-            existingBlogContent.Description = blogContentDto.Description;
             existingBlogContent.Content = blogContentDto.Content;
             existingBlogContent.Template = blogContentDto.Template;
             existingBlogContent.PageType = blogContentDto.PageType;

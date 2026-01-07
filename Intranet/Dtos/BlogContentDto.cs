@@ -14,7 +14,7 @@
 
         public string PageType { get; set; }
 
-        public IFormFile? Img { get; set; }
+        public List<IFormFile>? MediaFiles { get; set; }
 
     }
 }
