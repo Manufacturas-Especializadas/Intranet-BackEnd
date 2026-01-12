@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Writers;
+using System.Diagnostics;
 using System.Security.Claims;
 
 namespace Intranet.Controllers
@@ -16,12 +17,16 @@ namespace Intranet.Controllers
     {
         private readonly AppDbContext _context;
         private readonly AzureStorageService _azureStorageService;
+        private readonly IEmailService _emailService;
         private readonly string _container = "blogcontent";
 
-        public BlogContentController(AppDbContext context, AzureStorageService azureStorageService)
+        public BlogContentController(AppDbContext context, 
+            AzureStorageService azureStorageService,
+            IEmailService emailService)
         {
             _context = context;
             _azureStorageService = azureStorageService;
+            _emailService = emailService;
         }
 
         [HttpGet]
@@ -112,7 +117,7 @@ namespace Intranet.Controllers
             if (!userExists)
             {
                 return Unauthorized(new { message = "Usuario no válido" });
-            }            
+            }
 
             var newBlogContent = new BlogContent
             {
@@ -126,12 +131,11 @@ namespace Intranet.Controllers
             _context.BlogContent.Add(newBlogContent);
             await _context.SaveChangesAsync();
 
-            if(blogContentDto.MediaFiles != null && blogContentDto.MediaFiles.Count > 0)
+            if (blogContentDto.MediaFiles != null && blogContentDto.MediaFiles.Count > 0)
             {
                 var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".webm" };
-                var mediaList = new List<BlogMedia>();
 
-                foreach(var file in blogContentDto.MediaFiles)
+                foreach (var file in blogContentDto.MediaFiles)
                 {
                     var ext = Path.GetExtension(file.FileName).ToLower();
                     if (allowedExtensions.Contains(ext))
@@ -139,7 +143,6 @@ namespace Intranet.Controllers
                         try
                         {
                             string fileUrl = await _azureStorageService.UploadFile(_container, file, allowedExtensions);
-
                             string type = (ext == ".mp4" || ext == ".mov" || ext == ".webm") ? "video" : "image";
 
                             var mediaItem = new BlogMedia
@@ -151,20 +154,51 @@ namespace Intranet.Controllers
 
                             _context.BlogMedia.Add(mediaItem);
                         }
-                        catch(Exception ex)
+                        catch (Exception ex)
                         {
                             Console.WriteLine($"Error subiendo archivo: {ex.Message}");
                         }
                     }
                 }
-
                 await _context.SaveChangesAsync();
             }
+
+            var notificacionTitulo = newBlogContent.Title;
+            var notificacionId = newBlogContent.Id;
+            var notificacionPageType = newBlogContent.PageType;
+            var notificacionContent = newBlogContent.Content;
+
+            await Task.Run(async () =>
+            {
+                try
+                {
+
+                    var recipients = new List<string> { "jose.lugo@mesa.ms" };
+
+                    string subject = $"Nueva Noticia en MESA: {notificacionTitulo}";
+                    string link = $"http://intranet.mesa.local/noticia/{notificacionId}";
+
+                    string htmlMessage = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;'>
+                            <h2 style='color: #007bff;'>Nueva Publicación en {notificacionPageType}</h2>
+                            <h3 style='color: #333;'>{notificacionTitulo}</h3>
+                            <p>{(notificacionContent.Length > 150 ? notificacionContent.Substring(0, 150) + "..." : notificacionContent)}</p>
+                            <a href='{link}'>Leer noticia completa</a>
+                        </div>
+                    ";
+
+                    await _emailService.SendGlobalNotificationAsync(subject, htmlMessage, recipients);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[FONDO - ERROR CORREO]: {ex.Message} - {ex.InnerException?.Message}");
+                }
+            });
 
             return Ok(new
             {
                 success = true,
-                message = "Registro creado exitosamente",
+                message = "Registro creado exitosamente (Correo en proceso)",
                 blogId = newBlogContent.Id
             });
         }
@@ -280,20 +314,5 @@ namespace Intranet.Controllers
                 message = "Registro eliminado"
             });
         }
-
-        //[Authorize]
-        //[HttpPut]
-        //[Route("Update/{id:int}")]
-        //public async Task<IActionResult> Update([FromForm] BlogContentDto blogContentDto, int id)
-        //{
-        //    var IdBlog = await _context.BlogContent.FindAsync(id);
-
-        //    if(IdBlog == null)
-        //    {
-        //        return NotFound("Id no encontrado");
-        //    }
-
-            
-        //}
     }
 }
