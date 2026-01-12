@@ -16,5 +16,6 @@
 
         public List<IFormFile>? MediaFiles { get; set; }
 
+        public List<int>? MediaIdsToDelete { get; set; }
     }
 }
