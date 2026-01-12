@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Writers;
 using System.Security.Claims;
 
 namespace Intranet.Controllers
@@ -45,6 +46,31 @@ namespace Intranet.Controllers
             }
 
             return Ok(content);
+        }
+
+        [HttpGet]
+        [Route("GetAllBlogContent")]
+        public async Task<IActionResult> GetAllBlogContent()
+        {
+            try
+            {
+                var content = await _context.BlogContent
+                                        .AsNoTracking()
+                                        .Include(b => b.BlogMedia)
+                                        .OrderByDescending(b => b.CreatedAt)
+                                        .ToListAsync();
+
+                if(content == null || !content.Any())
+                {
+                    return Ok(new List<BlogContent>());
+                }
+
+                return Ok(content);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, $"Error interno: {ex.Message}");
+            }
         }
 
         [HttpGet]
@@ -175,31 +201,52 @@ namespace Intranet.Controllers
                 return NotFound(new { message = "Contenido no encontrado o no autorizado para editarlo" });
             }
 
-            string fileUrl = existingBlogContent.Img;
-
-            //if (blogContentDto.Img != null && blogContentDto.Img.Length > 0)
-            //{
-            //    var allowedExtensions = new[]
-            //    {
-            //        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
-            //        ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"
-            //    };
-
-            //    try
-            //    {
-            //        fileUrl = await _azureStorageService.UploadFile(_container, blogContentDto.Img, allowedExtensions);
-            //    }
-            //    catch (Exception ex)
-            //    {
-            //        return BadRequest(new { message = ex.Message });
-            //    }
-            //}
-
             existingBlogContent.Title = blogContentDto.Title;
             existingBlogContent.Content = blogContentDto.Content;
-            existingBlogContent.Template = blogContentDto.Template;
             existingBlogContent.PageType = blogContentDto.PageType;
-            existingBlogContent.Img = fileUrl!;
+
+            if(blogContentDto.MediaIdsToDelete != null && blogContentDto.MediaIdsToDelete.Any())
+            {
+                var imagesToDelete = await _context.BlogMedia
+                                    .Where(x => x.BlogContentId == id && blogContentDto.MediaIdsToDelete.Contains(x.Id))
+                                    .ToListAsync();
+                if(imagesToDelete.Any())
+                {
+                    _context.BlogMedia.RemoveRange(imagesToDelete);
+                }
+            }
+
+            if (blogContentDto.MediaFiles != null && blogContentDto.MediaFiles.Count > 0)
+            {
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".webm" };
+
+                foreach (var file in blogContentDto.MediaFiles)
+                {
+                    var ext = Path.GetExtension(file.FileName).ToLower();
+                    if (allowedExtensions.Contains(ext))
+                    {
+                        try
+                        {
+                            string fileUrl = await _azureStorageService.UploadFile(_container, file, allowedExtensions);
+
+                            string type = (ext == ".mp4" || ext == ".mov" || ext == ".webm") ? "video" : "image";
+
+                            var mediaItem = new BlogMedia
+                            {
+                                Url = fileUrl,
+                                MediaType = type,
+                                BlogContentId = existingBlogContent.Id
+                            };
+
+                            _context.BlogMedia.Add(mediaItem);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error al subir archivo en edición: {ex.Message}");
+                        }
+                    }
+                }
+            }
 
             _context.BlogContent.Update(existingBlogContent);
             await _context.SaveChangesAsync();
