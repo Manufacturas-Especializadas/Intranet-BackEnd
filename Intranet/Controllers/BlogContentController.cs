@@ -17,12 +17,12 @@ namespace Intranet.Controllers
     {
         private readonly AppDbContext _context;
         private readonly AzureStorageService _azureStorageService;
-        private readonly IEmailService _emailService;
+        private readonly EmailService _emailService;
         private readonly string _container = "blogcontent";
 
         public BlogContentController(AppDbContext context, 
             AzureStorageService azureStorageService,
-            IEmailService emailService)
+            EmailService emailService)
         {
             _context = context;
             _azureStorageService = azureStorageService;
@@ -102,22 +102,14 @@ namespace Intranet.Controllers
         [Route("Register")]
         public async Task<IActionResult> Register([FromForm] BlogContentDto blogContentDto)
         {
-            if (blogContentDto == null)
-            {
-                return BadRequest("Campos vacíos");
-            }
+            if (blogContentDto == null) return BadRequest("Campos vacíos");
 
             var userClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userClaim == null || !int.TryParse(userClaim.Value, out int userId))
-            {
                 return Unauthorized(new { message = "Usuario no autenticado" });
-            }
 
             var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
-            if (!userExists)
-            {
-                return Unauthorized(new { message = "Usuario no válido" });
-            }
+            if (!userExists) return Unauthorized(new { message = "Usuario no válido" });
 
             var newBlogContent = new BlogContent
             {
@@ -134,7 +126,6 @@ namespace Intranet.Controllers
             if (blogContentDto.MediaFiles != null && blogContentDto.MediaFiles.Count > 0)
             {
                 var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".webm" };
-
                 foreach (var file in blogContentDto.MediaFiles)
                 {
                     var ext = Path.GetExtension(file.FileName).ToLower();
@@ -145,14 +136,12 @@ namespace Intranet.Controllers
                             string fileUrl = await _azureStorageService.UploadFile(_container, file, allowedExtensions);
                             string type = (ext == ".mp4" || ext == ".mov" || ext == ".webm") ? "video" : "image";
 
-                            var mediaItem = new BlogMedia
+                            _context.BlogMedia.Add(new BlogMedia
                             {
                                 Url = fileUrl,
                                 MediaType = type,
                                 BlogContentId = newBlogContent.Id
-                            };
-
-                            _context.BlogMedia.Add(mediaItem);
+                            });
                         }
                         catch (Exception ex)
                         {
@@ -163,42 +152,12 @@ namespace Intranet.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            var notificacionTitulo = newBlogContent.Title;
-            var notificacionId = newBlogContent.Id;
-            var notificacionPageType = newBlogContent.PageType;
-            var notificacionContent = newBlogContent.Content;
-
-            await Task.Run(async () =>
-            {
-                try
-                {
-
-                    var recipients = new List<string> { "jose.lugo@mesa.ms" };
-
-                    string subject = $"Nueva Noticia en MESA: {notificacionTitulo}";
-                    string link = $"http://intranet.mesa.local/noticia/{notificacionId}";
-
-                    string htmlMessage = $@"
-                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;'>
-                            <h2 style='color: #007bff;'>Nueva Publicación en {notificacionPageType}</h2>
-                            <h3 style='color: #333;'>{notificacionTitulo}</h3>
-                            <p>{(notificacionContent.Length > 150 ? notificacionContent.Substring(0, 150) + "..." : notificacionContent)}</p>
-                            <a href='{link}'>Leer noticia completa</a>
-                        </div>
-                    ";
-
-                    await _emailService.SendGlobalNotificationAsync(subject, htmlMessage, recipients);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[FONDO - ERROR CORREO]: {ex.Message} - {ex.InnerException?.Message}");
-                }
-            });
+            _ = Task.Run(() => SendNewPostNotificationAsync(newBlogContent));
 
             return Ok(new
             {
                 success = true,
-                message = "Registro creado exitosamente (Correo en proceso)",
+                message = "Registro creado exitosamente",
                 blogId = newBlogContent.Id
             });
         }
@@ -313,6 +272,56 @@ namespace Intranet.Controllers
                 success = true,
                 message = "Registro eliminado"
             });
+        }
+
+        private async Task SendNewPostNotificationAsync(BlogContent post)
+        {
+            try
+            {
+                //var recipients = new List<string> { "jose.lugo@mesa.ms" };
+
+                string subject = $"Nueva Noticia MESA: {post.Title}";
+                string link = $"http://intranet.mesa.local/noticia/{post.Id}";
+
+                string htmlMessage = $@"
+                    <div style='font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;'>
+                        <div style='max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                            
+                            <div style='background-color: #007bff; padding: 20px; text-align: center;'>
+                                <h1 style='color: #ffffff; margin: 0; font-size: 24px;'>Novedades MESA</h1>
+                            </div>
+
+                            <div style='padding: 30px;'>
+                                <span style='background-color: #e3f2fd; color: #0d47a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase;'>
+                                    {post.PageType}
+                                </span>
+                                
+                                <h2 style='color: #333333; margin-top: 15px;'>{post.Title}</h2>
+                                
+                                <p style='color: #555555; line-height: 1.6; font-size: 16px;'>
+                                    {(post.Content.Length > 200 ? post.Content.Substring(0, 200) + "..." : post.Content)}
+                                </p>
+
+                                <div style='text-align: center; margin-top: 30px;'>
+                                    <a href='{link}' style='background-color: #007bff; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; display: inline-block;'>
+                                        Leer noticia completa
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div style='background-color: #eeeeee; padding: 15px; text-align: center; font-size: 12px; color: #888888;'>
+                                <p>Has recibido este correo porque formas parte del equipo MESA.</p>
+                            </div>
+                        </div>
+                    </div>";
+
+               
+                await _emailService.SendEmailForAPersonAsync("jose.lugo@mesa.ms", subject, htmlMessage);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[FONDO - ERROR CORREO]: {ex.Message}");
+            }
         }
     }
 }

@@ -1,64 +1,75 @@
 ﻿using Intranet.Data;
-using MailKit.Security;
 using Microsoft.Extensions.Options;
-using MimeKit;
+using System.Net;
 using System.Net.Mail;
-using MailKit.Net.Smtp;
-using System.Diagnostics;
 
 namespace Intranet.Services
 {
-    public interface IEmailService
+    public class EmailService
     {
-        Task SendGlobalNotificationAsync(string subject, string messageBody, List<string> recipients);
-    }
+        private readonly EmailSettings _setting;
 
-    public class EmailService : IEmailService
-    {
-        private readonly EmailSettings _settings;
-
-        public EmailService(IOptions<EmailSettings> settings)
+        public EmailService(IOptions<EmailSettings> options)
         {
-            _settings = settings.Value;
+            _setting = options.Value;
         }
 
-        public async Task SendGlobalNotificationAsync(string subject, string messageBody, List<string> recipients)
+        public async Task SendEmailForAPersonAsync(string toEmail, string subject, string body)
         {
-            var email = new MimeMessage();
-            email.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
-
-            foreach (var address in recipients)
+            var mailMessage = new MailMessage
             {
-                email.Bcc.Add(MailboxAddress.Parse(address));
+                From = new MailAddress(_setting.SenderEmail, _setting.SenderName),
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = true,
+                Priority = MailPriority.High,
+            };
+
+            mailMessage.To.Add(toEmail);
+
+            using var client = new SmtpClient
+            {
+                Host = _setting.Host,
+                Port = _setting.Port,
+                EnableSsl = _setting.UseSSL,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(_setting.Username, _setting.Password)
+            };
+
+            await client.SendMailAsync(mailMessage);
+        }
+
+        public async Task SendEmailAsync(List<string> recipients, string subject, string body)
+        {
+            var mailMessage = new MailMessage
+            {
+                From = new MailAddress(_setting.SenderEmail, _setting.SenderName),
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = true,
+                Priority = MailPriority.High,
+            };
+
+            mailMessage.To.Add(_setting.SenderEmail);
+
+            foreach (var email in recipients)
+            {
+                if (!string.IsNullOrWhiteSpace(email))
+                {
+                    mailMessage.Bcc.Add(email);
+                }
             }
 
-            email.Subject = subject;
-            var builder = new BodyBuilder { HtmlBody = messageBody };
-            email.Body = builder.ToMessageBody();
-
-            using var smtp = new MailKit.Net.Smtp.SmtpClient();
-            smtp.Timeout = 10000;
-
-            try
+            using var client = new SmtpClient
             {
-                smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
+                Host = _setting.Host,
+                Port = _setting.Port,
+                EnableSsl = _setting.UseSSL,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(_setting.Username, _setting.Password)
+            };
 
-                await smtp.ConnectAsync("mail.mexis.com.mx", 587, SecureSocketOptions.StartTls);
-
-                await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
-
-                await smtp.SendAsync(email);
-
-                Debug.WriteLine("[EMAIL]: Enviado exitosamente (Configuración Outlook clonada).");
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ERROR SMTP]: {ex.Message}");                
-            }
-            finally
-            {
-                await smtp.DisconnectAsync(true);
-            }
+            await client.SendMailAsync(mailMessage);
         }
     }
 }
