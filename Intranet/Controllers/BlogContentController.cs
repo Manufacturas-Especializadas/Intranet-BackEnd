@@ -281,7 +281,7 @@ namespace Intranet.Controllers
                 //var recipients = new List<string> { "jose.lugo@mesa.ms" };
 
                 string subject = $"Nueva Noticia MESA: {post.Title}";
-                string link = $"http://intranet.mesa.local/noticia/{post.Id}";
+                string link = "https://orange-wave-0308f6610.2.azurestaticapps.net";
 
                 string htmlMessage = $@"
                     <div style='font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;'>
