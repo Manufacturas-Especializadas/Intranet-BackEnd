@@ -108,9 +108,6 @@ namespace Intranet.Controllers
             if (userClaim == null || !int.TryParse(userClaim.Value, out int userId))
                 return Unauthorized(new { message = "Usuario no autenticado" });
 
-            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
-            if (!userExists) return Unauthorized(new { message = "Usuario no válido" });
-
             var newBlogContent = new BlogContent
             {
                 Title = blogContentDto.Title,
@@ -128,38 +125,24 @@ namespace Intranet.Controllers
                 var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".webm" };
                 foreach (var file in blogContentDto.MediaFiles)
                 {
-                    var ext = Path.GetExtension(file.FileName).ToLower();
-                    if (allowedExtensions.Contains(ext))
+                    try
                     {
-                        try
+                        var ext = Path.GetExtension(file.FileName).ToLower();
+                        if (allowedExtensions.Contains(ext))
                         {
                             string fileUrl = await _azureStorageService.UploadFile(_container, file, allowedExtensions);
                             string type = (ext == ".mp4" || ext == ".mov" || ext == ".webm") ? "video" : "image";
-
-                            _context.BlogMedia.Add(new BlogMedia
-                            {
-                                Url = fileUrl,
-                                MediaType = type,
-                                BlogContentId = newBlogContent.Id
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error subiendo archivo: {ex.Message}");
+                            _context.BlogMedia.Add(new BlogMedia { Url = fileUrl, MediaType = type, BlogContentId = newBlogContent.Id });
                         }
                     }
+                    catch (Exception ex) { Console.WriteLine($"Error archivo: {ex.Message}"); }
                 }
                 await _context.SaveChangesAsync();
             }
 
             _ = Task.Run(() => SendNewPostNotificationAsync(newBlogContent));
 
-            return Ok(new
-            {
-                success = true,
-                message = "Registro creado exitosamente",
-                blogId = newBlogContent.Id
-            });
+            return Ok(new { success = true, message = "Registro creado exitosamente", blogId = newBlogContent.Id });
         }
 
         [Authorize]
@@ -278,49 +261,28 @@ namespace Intranet.Controllers
         {
             try
             {
-                //var recipients = new List<string> { "jose.lugo@mesa.ms" };
+                var recipients = new List<string> { "jose.lugo@mesa.ms" };
 
                 string subject = $"Nueva Noticia MESA: {post.Title}";
                 string link = "https://orange-wave-0308f6610.2.azurestaticapps.net";
 
                 string htmlMessage = $@"
                     <div style='font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;'>
-                        <div style='max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
-                            
-                            <div style='background-color: #007bff; padding: 20px; text-align: center;'>
-                                <h1 style='color: #ffffff; margin: 0; font-size: 24px;'>Novedades MESA</h1>
-                            </div>
-
-                            <div style='padding: 30px;'>
-                                <span style='background-color: #e3f2fd; color: #0d47a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase;'>
-                                    {post.PageType}
-                                </span>
-                                
-                                <h2 style='color: #333333; margin-top: 15px;'>{post.Title}</h2>
-                                
-                                <p style='color: #555555; line-height: 1.6; font-size: 16px;'>
-                                    {(post.Content.Length > 200 ? post.Content.Substring(0, 200) + "..." : post.Content)}
-                                </p>
-
-                                <div style='text-align: center; margin-top: 30px;'>
-                                    <a href='{link}' style='background-color: #007bff; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; display: inline-block;'>
-                                        Leer noticia completa
-                                    </a>
-                                </div>
-                            </div>
-
-                            <div style='background-color: #eeeeee; padding: 15px; text-align: center; font-size: 12px; color: #888888;'>
-                                <p>Has recibido este correo porque formas parte del equipo MESA.</p>
-                            </div>
+                        <div style='max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 20px;'>
+                            <h2 style='color: #004fa9;'>Novedades MESA</h2>
+                            <span style='background-color: #e3f2fd; color: #0d47a1; padding: 5px; font-weight:bold;'>{post.PageType}</span>
+                            <h3>{post.Title}</h3>
+                            <p>{(post.Content.Length > 200 ? post.Content.Substring(0, 200) + "..." : post.Content)}</p>
+                            <br/>
+                            <a href='{link}' style='background-color: #00b0f5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Leer Completa</a>
                         </div>
                     </div>";
 
-               
-                await _emailService.SendEmailForAPersonAsync("jose.lugo@mesa.ms", subject, htmlMessage);
+                await _emailService.SendGlobalNotificationAsync(subject, htmlMessage, recipients);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[FONDO - ERROR CORREO]: {ex.Message}");
+                Console.WriteLine($"[FONDO - ERROR CORREO]: {ex.Message}");
             }
         }
     }

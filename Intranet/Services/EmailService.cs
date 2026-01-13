@@ -1,75 +1,58 @@
 ﻿using Intranet.Data;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Options;
-using System.Net;
-using System.Net.Mail;
+using MimeKit;
+using System.Diagnostics;
 
 namespace Intranet.Services
 {
     public class EmailService
     {
-        private readonly EmailSettings _setting;
+        private readonly EmailSettings _settings;
 
-        public EmailService(IOptions<EmailSettings> options)
+        public EmailService(IOptions<EmailSettings> settings)
         {
-            _setting = options.Value;
+            _settings = settings.Value;
         }
 
-        public async Task SendEmailForAPersonAsync(string toEmail, string subject, string body)
+        public async Task SendGlobalNotificationAsync(string subject, string messageBody, List<string> recipients)
         {
-            var mailMessage = new MailMessage
+            var email = new MimeMessage();
+            email.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
+
+            foreach (var address in recipients)
             {
-                From = new MailAddress(_setting.SenderEmail, _setting.SenderName),
-                Subject = subject,
-                Body = body,
-                IsBodyHtml = true,
-                Priority = MailPriority.High,
-            };
-
-            mailMessage.To.Add(toEmail);
-
-            using var client = new SmtpClient
-            {
-                Host = _setting.Host,
-                Port = _setting.Port,
-                EnableSsl = _setting.UseSSL,
-                UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(_setting.Username, _setting.Password)
-            };
-
-            await client.SendMailAsync(mailMessage);
-        }
-
-        public async Task SendEmailAsync(List<string> recipients, string subject, string body)
-        {
-            var mailMessage = new MailMessage
-            {
-                From = new MailAddress(_setting.SenderEmail, _setting.SenderName),
-                Subject = subject,
-                Body = body,
-                IsBodyHtml = true,
-                Priority = MailPriority.High,
-            };
-
-            mailMessage.To.Add(_setting.SenderEmail);
-
-            foreach (var email in recipients)
-            {
-                if (!string.IsNullOrWhiteSpace(email))
+                if (!string.IsNullOrWhiteSpace(address))
                 {
-                    mailMessage.Bcc.Add(email);
+                    email.Bcc.Add(MailboxAddress.Parse(address));
                 }
             }
 
-            using var client = new SmtpClient
-            {
-                Host = _setting.Host,
-                Port = _setting.Port,
-                EnableSsl = _setting.UseSSL,
-                UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(_setting.Username, _setting.Password)
-            };
+            email.Subject = subject;
+            var builder = new BodyBuilder { HtmlBody = messageBody };
+            email.Body = builder.ToMessageBody();
 
-            await client.SendMailAsync(mailMessage);
+            using var smtp = new SmtpClient();
+            smtp.Timeout = 15000;
+
+            try
+            {
+                smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+                await smtp.ConnectAsync(_settings.Host, _settings.Port, SecureSocketOptions.Auto);
+
+                await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
+                await smtp.SendAsync(email);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ERROR EMAIL]: No se pudo enviar por puerto {_settings.Port}. Detalles: {ex.Message}");
+            }
+            finally
+            {
+                await smtp.DisconnectAsync(true);
+            }
         }
     }
 }
